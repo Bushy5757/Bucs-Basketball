@@ -252,7 +252,7 @@ function vHome(){
   ${S.seenHelp?"":`<div class="help"><b>How it works</b><ol><li>Pick the players on the floor.</li><li>Tap a stat (PTS, AST, …), then the player. For points, pick 1, 2 or 3.</li><li>To sub: tap <b>SUB</b>, tap the player coming out, then pick who comes in.</li><li>Wrong tap? Hit <b>Undo</b>.</li></ol><button data-a="helpok">Got it</button></div>`}
   ${empty?`<div class="help"><b>Set up your team first</b><br>Add your team name and players, then start a game.<button class="big red" data-a="go" data-v="roster">Set Up Team &amp; Players</button></div>`:""}
   ${hg?`<button class="big red" data-a="resume" data-id="${hg.id}">Resume helper game vs ${esc(hg.opp||"Opponent")} · ${plabel(hg,hg.q)}</button>`:""}
-  ${inprogs.map(x=>`<button class="big red" data-a="resume" data-id="${x.id}">Resume vs ${esc(x.opp||"Opponent")} · ${plabel(x,x.q)} · ${usScore(x)}–${x.oppScore||0}<br><small style="font-weight:400">Started ${new Date(x.date).toLocaleString([],{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</small></button>`).join("")}
+  ${inprogs.map(x=>`<div class="row" style="align-items:stretch"><button class="big red" style="flex:1" data-a="resume" data-id="${x.id}">Resume vs ${esc(x.opp||"Opponent")} · ${plabel(x,x.q)} · ${usScore(x)}–${x.oppScore||0}<br><small style="font-weight:400">Started ${new Date(x.date).toLocaleString([],{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</small></button><button class="ghost" style="flex:0 0 84px" data-a="delgame" data-id="${x.id}">Delete</button></div>`).join("")}
   <button class="big ${inprog||empty?"":"red"}" data-a="newgame">New Game</button>
   <div class="row"><button data-a="go" data-v="season">Season Totals</button><button data-a="go" data-v="roster">Team &amp; Roster</button></div>
   <h3>Past games</h3><div class="list">
@@ -358,8 +358,11 @@ function vBox(){
 }
 function sumText(g){
   const T=totals(g),M=minutes(g),u=usScore(g),o=g.oppScore||0,r=u>o?"W":u<o?"L":"T";
-  let s=`${g.teamName}${g.grade?" ("+g.grade+")":""} vs ${g.opp||"Opponent"} – ${fmtDate(g.date)}\nFinal: ${g.teamName} ${u}, ${g.opp||"Opponent"} ${o} (${r})${g.done?"":" – in progress"}\n\nPTS / AST / TO / STL / REB / BLK / PF / MIN\n`;
-  g.roster.slice().sort(byNum).forEach(p=>{const t=T[p.id];s+=`#${p.num} ${dn(p.name)}: ${t.pts} / ${t.ast} / ${t.to} / ${t.stl} / ${t.reb} / ${t.blk} / ${t.pf} / ${mins(M[p.id])}\n`;});
+  const tot={pts:0,ast:0,to:0,stl:0,reb:0,blk:0,pf:0};
+  const parts=(t,m)=>{const a=[];if(t.pts)a.push(t.pts+" pts");if(t.reb)a.push(t.reb+" reb");if(t.ast)a.push(t.ast+" ast");if(t.stl)a.push(t.stl+" stl");if(t.blk)a.push(t.blk+" blk");if(t.to)a.push(t.to+" TO");if(t.pf)a.push(t.pf+" foul"+(t.pf>1?"s":""));if(m!=null)a.push(m+" min");return a;};
+  let s=`\u{1F3C0} ${g.teamName.toUpperCase()}${g.grade?" ("+g.grade+")":""} vs ${g.opp||"Opponent"}\n${fmtDate(g.date)} \u00B7 ${g.done?"FINAL":"IN PROGRESS"}: ${r} ${u}\u2013${o}\n\n`;
+  g.roster.slice().sort(byNum).forEach(p=>{const t=T[p.id];for(const k in tot)tot[k]+=t[k];s+=`#${p.num} ${dn(p.name)} \u2014 ${parts(t,mins(M[p.id])).join(", ")}\n`;});
+  s+=`\nTEAM: ${parts(tot,null).join(" \u00B7 ")}`;
   return s;
 }
 
