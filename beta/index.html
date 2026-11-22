@@ -230,7 +230,7 @@ function go(v){view=v;sel=null;subMode=false;subOut=[];subIn=[];closeSheet();ren
 /* ---------- views ---------- */
 function vHome(){
   const t=team();
-  const inprog=S.games.find(g=>!g.done&&g.teamId===t.id);
+  const inprogs=S.games.filter(g=>!g.done&&g.teamId===t.id&&!isHelper(g)),inprog=inprogs[0];
   const hg=S.games.find(g=>!g.done&&isHelper(g)&&!g.cloud.gone);
   const past=S.games.filter(g=>g.done&&(g.teamId===t.id||isHelper(g))).sort((a,b)=>b.date.localeCompare(a.date));
   const empty=t.roster.length===0;
@@ -239,7 +239,7 @@ function vHome(){
   ${S.seenHelp?"":`<div class="help"><b>How it works</b><ol><li>Pick the players on the floor.</li><li>Tap a stat (PTS, AST, …), then the player. For points, pick 1, 2 or 3.</li><li>To sub: tap <b>SUB</b>, tap the player coming out, then pick who comes in.</li><li>Wrong tap? Hit <b>Undo</b>.</li></ol><button data-a="helpok">Got it</button></div>`}
   ${empty?`<div class="help"><b>Set up your team first</b><br>Add your team name and players, then start a game.<button class="big red" data-a="go" data-v="roster">Set Up Team &amp; Players</button></div>`:""}
   ${hg?`<button class="big red" data-a="resume" data-id="${hg.id}">Resume helper game vs ${esc(hg.opp||"Opponent")} · ${plabel(hg,hg.q)}</button>`:""}
-  ${inprog?`<button class="big red" data-a="resume" data-id="${inprog.id}">Resume game vs ${esc(inprog.opp||"Opponent")} · ${plabel(inprog,inprog.q)}</button>`:""}
+  ${inprogs.map(x=>`<button class="big red" data-a="resume" data-id="${x.id}">Resume vs ${esc(x.opp||"Opponent")} · ${plabel(x,x.q)} · ${usScore(x)}–${x.oppScore||0}<br><small style="font-weight:400">Started ${new Date(x.date).toLocaleString([],{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</small></button>`).join("")}
   <button class="big ${inprog||empty?"":"red"}" data-a="newgame">New Game</button>
   <div class="row"><button data-a="go" data-v="season">Season Totals</button><button data-a="go" data-v="roster">Team &amp; Roster</button></div>
   <h3>Past games</h3><div class="list">
@@ -294,7 +294,7 @@ function vGame(){
   <div class="stats">${Object.keys(LBL).filter(k=>mine.includes(k)).map(statBtn).join("")}${hp?"":`<button class="sub ${subMode?"on":""}" data-a="stat" data-s="sub">SUB</button>`}</div>
   <div class="hint">${hint}</div>
   ${subMode&&subOut.length?`<div class="row" style="padding:8px 14px 0;max-width:640px;margin:0 auto"><button class="red" data-a="subpick">Choose Replacements (${subOut.length})</button><button class="ghost" data-a="subclear">Clear</button></div>`:""}
-  <div class="floor">${g.floor.map(id=>{const p=g.roster.find(x=>x.id===id);if(!p)return "";const t=T[id];return `<button class="pc ${sel?"target":subMode?(subOut.includes(id)?"subsel":"subtarget"):""}" data-a="pl" data-id="${id}"><div class="top"><span class="num">${esc(p.num)}</span><span class="pts">${t.pts}<small>PTS</small></span></div><div class="nm">${esc(dn(p.name))}</div><div class="mini">A${t.ast} · S${t.stl} · R${t.reb} · B${t.blk} · TO${t.to} · F${t.pf}</div></button>`;}).join("")}</div>
+  <div class="floor">${g.floor.map(id=>g.roster.find(x=>x.id===id)).filter(Boolean).sort(byNum).map(p=>{const id=p.id;const t=T[id];return `<button class="pc ${sel?"target":subMode?(subOut.includes(id)?"subsel":"subtarget"):""}" data-a="pl" data-id="${id}"><div class="top"><span class="num">${esc(p.num)}</span><span class="pts">${t.pts}<small>PTS</small></span></div><div class="nm">${esc(dn(p.name))}</div><div class="mini">A${t.ast} · S${t.stl} · R${t.reb} · B${t.blk} · TO${t.to} · F${t.pf}</div></button>`;}).join("")}</div>
   <div class="row" style="padding:10px 14px 0;max-width:640px;margin:0 auto;flex-wrap:wrap">${!hp&&noEv?`<button class="ghost" data-a="fixlineup">Fix Lineup</button>`:""}${collab?`<button class="ghost" data-a="assign">Assign Stats</button><button class="ghost" data-a="hentries">Helper Entries</button>`:""}${hp?"":`<button class="ghost" data-a="sharesheet">${g.cloud?"Sharing":"Share Live"}</button>`}</div>
   <div class="pad" style="padding-top:0"></div>
   <div class="bar"><div class="last">${g.events.length?"Last: "+esc(lastText(g)):"&nbsp;"}</div>
@@ -331,7 +331,7 @@ function vBox(){
   const rows=g.roster.slice().sort(byNum).map(p=>{const t=T[p.id];for(const k in tot)tot[k]+=t[k];return statRow(p,t,mins(M[p.id]));}).join("");
   const text=sumText(g);
   return hdr(`vs ${g.opp||"Opponent"}`,`${fmtDate(g.date)} · ${g.done?"Final":"In progress ("+plabel(g,g.q)+")"}`,g.done?"home":"game")+`<div class="pad">
-  <div class="fin ${r}">${esc(g.teamName)} ${u} – ${esc(g.opp||"Opp")} ${o} ${g.done?`(${r})`:""}</div>
+  ${!g.done&&g.needLineup&&!isHelper(g)?`<div class="help" style="margin-top:0"><b>${plabel(g,g.q-1)} is over.</b> Look over the stats, then pick the lineup when you're ready.<button class="big red" data-a="lineupnow">Pick Lineup for ${plabel(g,g.q)}</button></div>`:""}<div class="fin ${r}">${esc(g.teamName)} ${u} – ${esc(g.opp||"Opp")} ${o} ${g.done?`(${r})`:""}</div>
   <div class="tbl"><table><tr><th>#</th><th class="nm">PLAYER</th><th>PTS</th><th>AST</th><th>TO</th><th>STL</th><th>REB</th><th>BLK</th><th>PF</th><th>MIN</th></tr>${rows}
   <tr class="tot"><td></td><td class="nm">TEAM</td><td>${tot.pts}</td><td>${tot.ast}</td><td>${tot.to}</td><td>${tot.stl}</td><td>${tot.reb}</td><td>${tot.blk}</td><td>${tot.pf}</td><td></td></tr></table></div>
   <div class="hint" style="padding:6px 0">Minutes come from the clock when it was used, otherwise they're estimated from the sub order.</div>
@@ -387,12 +387,18 @@ function vRoster(){
   </div>`;
 }
 
+function trashAdd(it){S.trash=S.trash||[];it.id=uid();it.at=Date.now();S.trash.push(it);if(S.trash.length>15)S.trash.shift();}
+function trashHtml(){
+  const tr=(S.trash||[]).slice().reverse();if(!tr.length)return "";
+  return `<h3>Recently Deleted</h3>`+tr.map(it=>{const g=it.game,lab=g?`Game vs ${esc(g.opp||"Opponent")} · ${usScore(g)}–${g.oppScore||0}`:`Team ${esc(it.team?it.team.name:"")} (${(it.games||[]).length} games)`;return `<div class="rr2" style="grid-template-columns:1fr 100px"><span style="font-weight:400">${lab}<br><small>${new Date(it.at).toLocaleString()}</small></span><button data-a="restoregame" data-id="${it.id}">Restore</button></div>`;}).join("");
+}
 function bakInfo(){try{const r=localStorage.getItem(BAK);if(!r)return null;const o=JSON.parse(r);return o&&o.s&&o.s.games?o:null;}catch(e){return null;}}
 function vBackup(){
   return hdr("Backup / Restore","Keep your data safe","home")+`<div class="pad">
   <div class="hint" style="padding:0 0 8px">Your games are saved on this device. Copy this text somewhere safe (a note or email to yourself) to back it up.</div>
   <textarea id="bk" readonly>${esc(JSON.stringify(S))}</textarea>
   <div class="row"><button class="red" data-a="copybk">Copy Backup</button></div>
+  ${trashHtml()}
   ${bakInfo()?`<h3>Automatic Backup</h3><div class="hint" style="padding:0 0 8px">Saved ${new Date(bakInfo().at).toLocaleString()} · ${bakInfo().s.games.length} game(s)</div><button class="big" data-a="restorebak">Restore Automatic Backup</button>`:""}
   <h3>Restore</h3>
   <textarea id="rs" placeholder="Paste a backup here"></textarea>
@@ -453,6 +459,7 @@ const A={
     g.floor=pick.slice();g.qStart[g.q]=pick.slice();g.needLineup=false;
     lineupFix=false;save();view="game";render();window.scrollTo(0,0);
   },
+  lineupnow(){const g=game();if(!g||isHelper(g))return;pick=[];lineupFix=false;view="lineup";render();window.scrollTo(0,0);},
   fixlineup(){const g=game();if(isHelper(g))return;pick=g.floor.slice();lineupFix=true;g.needLineup=true;view="lineup";render();},
   stat(d){if(d.s==="sub"){subMode=!subMode;sel=null;}else{sel=(sel===d.s)?null:d.s;subMode=false;}subOut=[];subIn=[];render();},
   clock(){
@@ -546,7 +553,7 @@ const A={
   },
   qgo(){
     const g=game();pauseClock(g);closeSheet();
-    if(g.q<periods(g)){g.q++;g.needLineup=true;g.clock={el:0,run:null};pick=[];lineupFix=false;save();view="lineup";render();window.scrollTo(0,0);}
+    if(g.q<periods(g)){g.q++;g.needLineup=true;g.clock={el:0,run:null};pick=[];lineupFix=false;save();boxId=g.id;view="box";sel=null;subMode=false;subOut=[];subIn=[];render();window.scrollTo(0,0);}
     else{g.done=true;save();maybeBackup(true);boxId=g.id;view="box";sel=null;subMode=false;subOut=[];subIn=[];render();window.scrollTo(0,0);}
   },
   box(d){const g=S.games.find(x=>x.id===d.id);if(g&&!g.done)S.gameId=g.id;boxId=d.id;view="box";sel=null;subMode=false;render();window.scrollTo(0,0);},
@@ -584,11 +591,18 @@ const A={
     save();render();toast(n?n+" players added":"Use one per line, like: 10 Alex Smith");
   },
   copybk(){copyText($("#bk"));},
-  delgame(d){openSheet(`<h2>Delete this game?</h2><div class="cnt">This can't be undone.</div><div class="row"><button class="ghost" data-a="close">Cancel</button><button class="red" data-a="delgame2" data-id="${d.id}">Delete</button></div>`);},
+  delgame(d){const g=S.games.find(x=>x.id===d.id);const info=g?`vs ${esc(g.opp||"Opponent")} · ${usScore(g)}–${g.oppScore||0} · ${g.done?"Final":plabel(g,g.q)} · ${g.events.length} entries`:"";openSheet(`<h2>Delete this game?</h2><div class="cnt"><b>${info}</b><br>It goes to Recently Deleted (Backup / Restore) where you can bring it back.</div><div class="row"><button class="ghost" data-a="close">Cancel</button><button class="red" data-a="delgame2" data-id="${d.id}">Delete</button></div>`);},
   async delgame2(d){
     const g=S.games.find(x=>x.id===d.id);
     if(g&&isOwner(g)){try{await unshare(g);}catch(e){closeSheet();toast("Need signal to remove the online copy first");return;}}
+    if(g){maybeBackup(true);trashAdd({game:{...g,cloud:null}});}
     S.games=S.games.filter(x=>x.id!==d.id);if(S.gameId===d.id)S.gameId=null;save();go("home");
+  },
+  restoregame(d){
+    const i=(S.trash||[]).findIndex(x=>x.id===d.id);if(i<0)return;const it=S.trash[i];
+    if(it.team&&!S.teams.find(t=>t.id===it.team.id))S.teams.push(it.team);
+    (it.games||[it.game]).filter(Boolean).forEach(g=>{if(!S.games.find(x=>x.id===g.id))S.games.push(g);});
+    S.trash.splice(i,1);save();go("home");toast("Restored");
   },
   padd(){team().roster.push({id:uid(),num:"",name:""});save();render();},
   pdel(d){const t=team();t.roster=t.roster.filter(p=>p.id!==d.id);save();render();},
@@ -600,6 +614,7 @@ const A={
   async delteam2(){
     const id=S.teamId;
     for(const g of S.games.filter(x=>x.teamId===id&&isOwner(x))){try{await unshare(g);}catch(e){closeSheet();toast("Need signal to remove online copies first");return;}}
+    maybeBackup(true);trashAdd({team:S.teams.find(t=>t.id===id),games:S.games.filter(g=>g.teamId===id).map(g=>({...g,cloud:null}))});
     S.games=S.games.filter(g=>g.teamId!==id);S.teams=S.teams.filter(t=>t.id!==id);S.teamId=S.teams[0].id;S.gameId=null;save();go("home");
   },
   restore(){
