@@ -143,11 +143,24 @@ function save(skip){
       S.games.forEach(g=>{if(!have.has(g.id))cur.games.push(g);});
       S=cur;
     }
+    syncRosters();
     S.rev=(S.rev||0)+1;
     localStorage.setItem(KEY,JSON.stringify(S));canSave=true;
     maybeBackup(false);
   }catch(e){canSave=false;}
   if(!skip)queueSync();
+}
+function syncRosters(){
+  // keep unfinished games in step with roster edits (names, numbers, new players)
+  try{S.games.forEach(g=>{
+    if(g.done||(g.cloud&&g.cloud.role==="helper"))return;
+    const t=S.teams.find(x=>x.id===g.teamId);if(!t)return;
+    t.roster.forEach(p=>{
+      const q=g.roster.find(x=>x.id===p.id);
+      if(q){if(q.num!==p.num)q.num=p.num;if(q.name!==p.name)q.name=p.name;}
+      else if(p.num!==""&&p.name)g.roster.push({...p});
+    });
+  });}catch(e){}
 }
 function refreshFromStore(){
   const cur=readStore();
