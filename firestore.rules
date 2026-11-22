@@ -1,0 +1,53 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isOwner(gid) {
+      return signedIn() && get(/databases/$(database)/documents/games/$(gid)).data.owner == request.auth.uid;
+    }
+    function isHelper(gid) {
+      return signedIn() && exists(/databases/$(database)/documents/games/$(gid)/helpers/$(request.auth.uid));
+    }
+
+    // Team pages: anyone with the link can read; only the creating device can change.
+    match /teams/{tid} {
+      allow get: if true;
+      allow create: if signedIn() && request.resource.data.owner == request.auth.uid;
+      allow update: if signedIn() && resource.data.owner == request.auth.uid
+                    && request.resource.data.owner == resource.data.owner;
+      allow delete: if signedIn() && resource.data.owner == request.auth.uid;
+    }
+
+    // Games: anyone with the (unguessable) link can read one game; no listing.
+    match /games/{gid} {
+      allow get: if true;
+      allow create: if signedIn() && request.resource.data.owner == request.auth.uid;
+      allow update: if signedIn() && resource.data.owner == request.auth.uid
+                    && request.resource.data.owner == resource.data.owner;
+      allow delete: if signedIn() && resource.data.owner == request.auth.uid;
+
+      // Individual stat/sub events (used when a second phone helps track).
+      match /events/{eid} {
+        allow read: if true;
+        allow create: if (isOwner(gid) || isHelper(gid)) && request.resource.data.by == request.auth.uid;
+        allow update: if (isOwner(gid) || isHelper(gid)) && resource.data.by == request.auth.uid
+                      && request.resource.data.by == request.auth.uid;
+        allow delete: if signedIn() && (resource.data.by == request.auth.uid || isOwner(gid));
+      }
+
+      // A helper phone registers itself by presenting a secret join code.
+      match /helpers/{uid} {
+        allow read: if signedIn() && (request.auth.uid == uid || isOwner(gid));
+        allow create: if signedIn() && request.auth.uid == uid
+                      && exists(/databases/$(database)/documents/games/$(gid)/codes/$(request.resource.data.code));
+        allow delete: if signedIn() && (request.auth.uid == uid || isOwner(gid));
+      }
+
+      // Join codes are never readable by clients; rules check them with exists().
+      match /codes/{code} {
+        allow create, delete: if isOwner(gid);
+      }
+    }
+  }
+}

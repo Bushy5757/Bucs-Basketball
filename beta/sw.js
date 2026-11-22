@@ -1,0 +1,13 @@
+// Offline cache for Bucs Basketball Stats (beta). Bump VERSION when the app changes.
+const VERSION="bucs-stats-beta-v1";
+const FILES=["./","index.html","manifest.webmanifest","icon-192.png","icon-512.png","vendor/firebase-app-compat.js","vendor/firebase-auth-compat.js","vendor/firebase-firestore-compat.js"];
+self.addEventListener("install",e=>{e.waitUntil(caches.open(VERSION).then(c=>c.addAll(FILES)).then(()=>self.skipWaiting()));});
+self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==VERSION).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
+self.addEventListener("fetch",e=>{
+  const u=new URL(e.request.url);
+  if(e.request.method!=="GET"||u.origin!==location.origin)return; // Firebase traffic goes straight to the network
+  e.respondWith(caches.match(e.request,{ignoreSearch:true}).then(hit=>{
+    const net=fetch(e.request).then(r=>{if(r&&r.ok){const copy=r.clone();caches.open(VERSION).then(c=>c.put(e.request,copy));}return r;}).catch(()=>hit);
+    return hit||net;
+  }));
+});
